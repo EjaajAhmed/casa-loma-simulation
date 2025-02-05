@@ -6,6 +6,13 @@
  * User Manual available at https://docs.gradle.org/8.0.2/userguide/building_java_projects.html
  */
 
+sourceSets {
+    test {
+        kotlin.srcDirs = ['src/test/kotlin']
+    }
+}
+
+
 plugins {
     // Apply the application plugin to add support for building a CLI application in Java.
     application
@@ -17,17 +24,25 @@ repositories {
 }
 
 dependencies {
-    // Use JUnit Jupiter for testing.
-    testImplementation("org.junit.jupiter:junit-jupiter:5.9.1")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.2")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.2")
 
-    // This dependency is used by the application.
-    implementation("com.google.guava:guava:31.1-jre")
+    // Kotlin test library
+    testImplementation("org.jetbrains.kotlin:kotlin-test")
+
+    // Mocking (if needed)
+    testImplementation("io.mockk:mockk:1.13.4")
 }
 
 application {
     // Define the main class for the application.
     mainClass.set("casa.loma.game.App")
 }
+
+tasks.test {
+    useJUnitPlatform()
+}
+
 
 tasks.named<Test>("test") {
     // Use JUnit Platform for unit tests.
