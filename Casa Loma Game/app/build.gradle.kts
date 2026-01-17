@@ -6,45 +6,35 @@
  * User Manual available at https://docs.gradle.org/8.0.2/userguide/building_java_projects.html
  */
 
-sourceSets {
-    test {
-        kotlin.srcDirs = ['src/test/kotlin']
-    }
-}
-
+import org.gradle.api.tasks.SourceSetContainer
+import org.jetbrains.kotlin.gradle.plugin.KotlinSourceSet
 
 plugins {
-    // Apply the application plugin to add support for building a CLI application in Java.
     application
+    kotlin("jvm") version "1.9.0"
+}
+
+kotlin {
+    jvmToolchain(17) // Use Java 17 target
 }
 
 repositories {
-    // Use Maven Central for resolving dependencies.
     mavenCentral()
 }
 
 dependencies {
+    implementation("mysql:mysql-connector-j:8.3.0")
+
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.2")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.2")
-
-    // Kotlin test library
     testImplementation("org.jetbrains.kotlin:kotlin-test")
-
-    // Mocking (if needed)
     testImplementation("io.mockk:mockk:1.13.4")
 }
 
 application {
-    // Define the main class for the application.
-    mainClass.set("casa.loma.game.App")
+    mainClass.set("casa.loma.game.CasaLomaGame")
 }
 
 tasks.test {
-    useJUnitPlatform()
-}
-
-
-tasks.named<Test>("test") {
-    // Use JUnit Platform for unit tests.
     useJUnitPlatform()
 }

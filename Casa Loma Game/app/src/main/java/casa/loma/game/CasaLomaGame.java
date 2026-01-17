@@ -215,6 +215,8 @@ public class CasaLomaGame {
 
     public static void main(String args[]){
         initializeRooms();
+        DatabaseInitializer.initializeDatabase("sql/schema.sql");
+        DatabaseInitializer.initializeDatabase("sql/seed_npcs.sql");
         initializeNPCs();
         startGame();
     }
