@@ -7,11 +7,40 @@ import java.util.Scanner;
 import java.lang.String;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Iterator;
 
 public class CasaLomaGame {
 
     public static Room[] rooms;
     public static NPCs[] npcs;
+
+    // Task system state
+    private static final List<Task> activeTasks = new ArrayList<>();
+    private static int nextTaskId = 1;
+    private static int writeUps = 0;
+
+    private static int hour = 8;
+    private static int minute = 0;
+    private static double i = 0.0;
+
+    // Task class for tracking assigned tasks
+    private static class Task {
+        int id;
+        String description;
+        int targetRoom;
+        int assignedTotalMinutes;
+        boolean completed;
+
+        Task(int id, String description, int targetRoom, int assignedTotalMinutes) {
+            this.id = id;
+            this.description = description;
+            this.targetRoom = targetRoom;
+            this.assignedTotalMinutes = assignedTotalMinutes;
+            this.completed = false;
+        }
+    }
 
     private static void initializeRooms() {
         // Create and initialize rooms
@@ -97,8 +126,8 @@ public class CasaLomaGame {
         Preet.setLoi(0.4);
 
         // Save NPCs to the database
-        saveNPCsToDatabase(npcs);
-        DatabaseInitializer.initializeDatabase("path/to/initialize_npcs.sql");
+        //saveNPCsToDatabase(npcs);
+        //DatabaseInitializer.initializeDatabase("path/to/initialize_npcs.sql");
 
     }
 
@@ -112,19 +141,32 @@ public class CasaLomaGame {
         String text = "";
         int roomNum = 0; //clock in
         //clock
-        int hour = 8;
-        int minute = 0;
+        hour = 8;
+        minute = 0;
 
         //User Input
         Scanner sc = new Scanner(System.in);
 
         System.out.println("Welcome to Casa Loma! You are about to clock in.");
-        double i = 0.0;
+        i = 0.0;
         int num = -1;
         while(i < 8.0){
 
+            if (!sc.hasNextLine()) {
+                System.out.println("Input closed. Exiting game.");
+                return;   // or break; depending on context
+            }
             text = sc.nextLine();
+            
             //Checking user's input to see how to respond
+            if (text.equalsIgnoreCase("tasks")) {
+                printActiveTasks();
+                continue;
+            }
+            if (text.equalsIgnoreCase("complete") || text.equalsIgnoreCase("complete task")) {
+                attemptCompleteFirstTask(roomNum);
+                continue;
+            }
             if(text.length() == 1){ // checks if user input is a room number or passing time or an action
                 num = Integer.parseInt(text); //changes player input to int
             }
@@ -143,6 +185,7 @@ public class CasaLomaGame {
                 // Calls Room Class methods to spawn NPC chances
                 rooms[roomNum].spawnNPCs();
                 interactWithNPCsInRoom(roomNum);
+                checkOverdueTasks(); // check tasks after time passes
                 continue;
             }
             //Moving rooms feature
@@ -187,7 +230,7 @@ public class CasaLomaGame {
          // Room currentRoom = rooms[roomNum];
         double totalLoi = 0.0;
 
-        if (npcs.length == 0) {
+        if (npcs == null || npcs.length == 0) {
             System.out.println("There are no NPCs in this room right now.");
             return;
         }
@@ -204,9 +247,21 @@ public class CasaLomaGame {
             if (randomValue <= cumulativeLoi) {
                 // Decide whether the NPC gives a job or a line
                 if (random.nextBoolean()) {
-                    System.out.println(npc.getName() + " has a task for you: " + npc.getRandomJobs());
+                    String job = extractRandomStringFromObject(npc.getRandomJobs());
+                    if (job == null || job.trim().isEmpty()) {
+                        job = npc.getName() + " asks you to do something.";
+                    }
+                    int target = parseTargetRoomFromText(job);
+                    int assignedTotalMinutes = hour * 60 + minute;
+                    Task t = new Task(nextTaskId++, job, target, assignedTotalMinutes);
+                    activeTasks.add(t);
+                    System.out.println(npc.getName() + " has a task for you: " + job);
                 } else {
-                    System.out.println(npc.getName() + " says: " + npc.getRandomLines());
+                    String line = extractRandomStringFromObject(npc.getRandomLines());
+                    if (line == null || line.trim().isEmpty()) {
+                        line = npc.getName() + " says hello.";
+                    }
+                    System.out.println(npc.getName() + " says: " + line);
                 }
                 return; // Exit after interacting with one NPC
             }
@@ -215,11 +270,124 @@ public class CasaLomaGame {
 
     public static void main(String args[]){
         initializeRooms();
-        DatabaseInitializer.initializeDatabase("sql/schema.sql");
-        DatabaseInitializer.initializeDatabase("sql/seed_npcs.sql");
+        //DatabaseInitializer.initializeDatabase("sql/schema.sql");
+        //DatabaseInitializer.initializeDatabase("sql/seed_npcs.sql");
         initializeNPCs();
         startGame();
     }
 
-}
+    private static String extractRandomStringFromObject(Object obj) {
+        if (obj == null) return null;
+        Random r = new Random();
+        try {
+            if (obj instanceof String[]) {
+                String[] arr = (String[]) obj;
+                if (arr.length == 0) return null;
+                return arr[r.nextInt(arr.length)];
+            } else if (obj instanceof List) {
+                List<?> list = (List<?>) obj;
+                if (list.isEmpty()) return null;
+                Object pick = list.get(r.nextInt(list.size()));
+                return (pick == null) ? null : pick.toString();
+            } else {
+                return obj.toString();
+            }
+        } catch (Exception e) {
+            return obj.toString();
+        }
+    }
 
+    private static int parseTargetRoomFromText(String text) {
+        String lower = text.toLowerCase();
+        if (lower.contains("library")) return findRoomByName("Library");
+        if (lower.contains("conservatory")) return findRoomByName("Conservatory");
+        if (lower.contains("front") && lower.contains("castle")) return findRoomByName("Front of Castle");
+        if (lower.contains("great hall") || lower.contains("greathall")) return findRoomByName("Great Hall");
+        if (lower.contains("terrace")) return findRoomByName("Terrace");
+        if (lower.contains("kitchen")) return findRoomByName("Kitchen");
+        if (lower.contains("ice room") || lower.contains("ice")) return findRoomByName("Ice Room");
+        if (lower.contains("peacock")) return findRoomByName("Peacock Alley");
+        if (lower.contains("security") || lower.contains("security hallway")) return findRoomByName("Security Hallway");
+        if (lower.contains("clock in") || lower.contains("clockin")) return findRoomByName("Clock In");
+        return 0;
+    }
+
+    private static int findRoomByName(String name) {
+        for (int i = 0; i < rooms.length; i++) {
+            if (rooms[i].getRoomName().equalsIgnoreCase(name)) return i;
+        }
+        return 0;
+    }
+
+    // New: attempt to complete the first (oldest) active task
+    private static void attemptCompleteFirstTask(int currentRoom) {
+        if (activeTasks.isEmpty()) {
+            System.out.println("You have no active tasks.");
+            return;
+        }
+        Task t = activeTasks.get(0);
+        if (t.completed) {
+            activeTasks.remove(0);
+            System.out.println("That task was already completed.");
+            return;
+        }
+        if (t.targetRoom != currentRoom) {
+            System.out.println("You're not in the correct room to complete that task. 15 minutes pass as a penalty.");
+            advanceTimeByMinutes(15);
+            return;
+        } else {
+            t.completed = true;
+            activeTasks.remove(0);
+            System.out.println("Task completed: " + t.description + " (Task #" + t.id + ")");
+        }
+    }
+
+    // New: list active tasks with remaining time and target room
+    private static void printActiveTasks() {
+        if (activeTasks.isEmpty()) {
+            System.out.println("No active tasks.");
+            return;
+        }
+        int nowTotal = hour * 60 + minute;
+        System.out.println("Active tasks:");
+        for (Task t : activeTasks) {
+            int elapsed = nowTotal - t.assignedTotalMinutes;
+            int remaining = 60 - elapsed;
+            String roomName = rooms[t.targetRoom].getRoomName();
+            System.out.printf(" #%d: %s — target: %s — assigned %d min ago — %s\n",
+                    t.id, t.description, roomName, elapsed,
+                    (remaining > 0 ? ("time left: " + remaining + " min") : "OVERDUE"));
+        }
+    }
+
+    // New: advance time and update shift/hour counters, then check overdue tasks
+    private static void advanceTimeByMinutes(int minutesToAdd) {
+        int totalMinutes = hour * 60 + minute + minutesToAdd;
+        hour = (totalMinutes / 60) % 24;
+        minute = totalMinutes % 60;
+        i = (hour - 8) + (minute / 60.0);
+        checkOverdueTasks();
+    }
+
+    // New: check tasks and issue write-ups for tasks overdue >= 60 minutes
+    private static void checkOverdueTasks() {
+        int nowTotal = hour * 60 + minute;
+        Iterator<Task> it = activeTasks.iterator();
+        while (it.hasNext()) {
+            Task t = it.next();
+            if (!t.completed) {
+                int elapsed = nowTotal - t.assignedTotalMinutes;
+                if (elapsed >= 60) {
+                    it.remove();
+                    writeUps++;
+                    System.out.println("You were written up for failing to complete a task in time: " + t.description + ". (Write-ups: " + writeUps + "/3)");
+                    if (writeUps >= 3) {
+                        System.out.println("Three write-ups. You have been fired.");
+                        System.exit(0);
+                    }
+                }
+            }
+        }
+    }
+
+}

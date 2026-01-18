@@ -6,3 +6,10 @@ Users may pass time and change rooms. Users are also equipped with a health bar,
 This project showcases data structures, object oriented programming and many other java applications while following common programming etiquette. Structured Queries (SQL) are added to load data into tables to ensure security and efficiency. It is an ongoing project that allows me to refine my programming skills while also serving as a memento to my time working at my part-time job.
 
 Future updates will be added.
+
+--Kotlin Test Cases Added---update
+
+--Complete Tasks and Task Menu Added
+    Penalties added to failed completion, Write ups added for another way to lose---update
+
+

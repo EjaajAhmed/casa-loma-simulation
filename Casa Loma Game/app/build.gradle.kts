@@ -15,7 +15,7 @@ plugins {
 }
 
 kotlin {
-    jvmToolchain(17) // Use Java 17 target
+    jvmToolchain(11)
 }
 
 repositories {
@@ -23,7 +23,8 @@ repositories {
 }
 
 dependencies {
-    implementation("mysql:mysql-connector-j:8.3.0")
+    implementation("com.mysql:mysql-connector-j:8.3.0")
+
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.2")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.2")
