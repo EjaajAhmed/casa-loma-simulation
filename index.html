@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Casa Loma - Shift UI</title>
+  <style>
+    :root{--bg:#0f1720;--card:#111827;--muted:#94a3b8;--accent:#06b6d4;--glass: rgba(255,255,255,0.03)}
+    html,body{height:100%;margin:0;font-family:Inter,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:linear-gradient(180deg,#081225 0%, #071126 100%);color:#e6eef6}
+    .app{display:grid;grid-template-columns:420px 1fr;gap:20px;padding:28px;max-width:1200px;margin:0 auto;height:100vh;box-sizing:border-box}
+    .card{background:var(--card);border-radius:12px;padding:18px;box-shadow:0 6px 20px rgba(2,6,23,0.6);}
+    header.logo{grid-column:1/-1;display:flex;align-items:center;gap:12px;margin-bottom:6px}
+    header.logo h1{font-size:18px;margin:0}
+    .controls{display:flex;flex-direction:column;gap:12px}
+    .row{display:flex;gap:8px}
+    input[type="text"], input[type="number"]{flex:1;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:var(--glass);color:inherit}
+    button{background:var(--accent);border:none;color:#042026;padding:8px 12px;border-radius:8px;font-weight:600;cursor:pointer}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);font-weight:600}
+    .small{padding:6px 10px;font-size:13px}
+    .muted{color:var(--muted);font-size:13px}
+    .log{background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);border-radius:8px;padding:10px;height:180px;overflow:auto;font-size:13px;color:#cfe9f2}
+    .tasks{margin-top:6px}
+    .task{background:rgba(255,255,255,0.02);padding:8px;border-radius:8px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+    .task .meta{font-size:12px;color:var(--muted)}
+    .mapWrap{display:flex;flex-direction:column;gap:12px}
+    .mapFrame{flex:1;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,0.04)}
+    iframe{width:100%;height:100%;border:0}
+    footer.hint{grid-column:1/-1;padding:6px 28px;color:var(--muted);font-size:13px}
+    @media (max-width:900px){.app{grid-template-columns:1fr;padding:16px}.mapWrap{order:2}.card{padding:14px}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="logo"><div class="card" style="display:inline-block;padding:10px;border-radius:10px;background:linear-gradient(90deg,#02293a,#03414e);font-weight:700">Casa Loma</div>
+      <h1>Shift UI — lightweight demo</h1>
+    </header>
+
+    <section class="card controls">
+      <div>
+        <div class="muted">Current time</div>
+        <div style="font-weight:700;font-size:20px;margin-top:6px" id="clock">08:00</div>
+      </div>
+
+      <div>
+        <div class="muted">Move to room (0-9)</div>
+        <div class="row" style="margin-top:8px">
+          <input id="roomInput" type="number" min="0" max="9" placeholder="Enter room number" />
+          <button id="moveBtn">Move</button>
+        </div>
+        <div class="muted" style="margin-top:6px">Or press the Spawn NPC button below to generate a task.</div>
+      </div>
+
+      <div class="row">
+        <button id="passBtn" class="small">Pass time (30m)</button>
+        <button id="spawnBtn" class="small ghost">Spawn NPC Task</button>
+        <button id="completeBtn" class="small">Complete</button>
+      </div>
+
+      <div>
+        <div class="muted">Activity log</div>
+        <div class="log" id="log"></div>
+      </div>
+
+      <div class="tasks card" style="padding:12px;background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);">
+        <div style="display:flex;justify-content:space-between;align-items:center"><strong>Active tasks</strong><button id="refreshTasks" class="ghost small">Refresh</button></div>
+        <div id="tasksList" style="margin-top:8px"></div>
+      </div>
+    </section>
+
+    <aside class="card mapWrap">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div><strong>Map (PDF)</strong><div class="muted">Drop CasaLomaMap.pdf in the same folder as index.html</div></div>
+        <div class="muted">Preview</div>
+      </div>
+      <div class="mapFrame" style="height:80vh">
+        <iframe id="pdfFrame" src="./CasaLomaMap.pdf"></iframe>
+      </div>
+    </aside>
+
+    <footer class="hint">Simple Design for now.</footer>
+  </div>
+
+  <script>
+    const clockEl = document.getElementById('clock');
+    const logEl = document.getElementById('log');
+    const tasksList = document.getElementById('tasksList');
+    let hour = 8, minute = 0; let i = 0.0;
+    let currentRoom = 0;
+
+    function updateClock(){
+      const mm = minute.toString().padStart(2,'0');
+      clockEl.textContent = hour + ':' + mm;
+    }
+
+    function appendLog(msg){
+      const p = document.createElement('div'); p.textContent = msg; p.style.marginBottom='6px';
+      logEl.prepend(p);
+    }
+
+    const tasks = [];
+    let nextId = 1;
+
+    function renderTasks(){
+      tasksList.innerHTML='';
+      if(tasks.length===0){ tasksList.innerHTML='<div class="muted">No active tasks.</div>'; return; }
+      tasks.forEach(t=>{
+        const el = document.createElement('div'); el.className='task';
+        const left = document.createElement('div'); left.innerHTML = '<div style="font-weight:700">#'+t.id+' '+t.short+'</div><div class="meta">target: '+t.targetName+'</div>';
+        const right = document.createElement('div'); const btn = document.createElement('button'); btn.textContent='Complete'; btn.className='small';
+        btn.onclick = ()=>{ attemptComplete(t.id); };
+        right.appendChild(btn);
+        el.appendChild(left); el.appendChild(right);
+        tasksList.appendChild(el);
+      })
+    }
+
+    function parseTargetRoomFromText(text){
+      const lower = text.toLowerCase();
+      if(lower.includes('library')) return {id:6,name:'Library'};
+      if(lower.includes('conservatory')) return {id:5,name:'Conservatory'};
+      if(lower.includes('front') && lower.includes('castle')) return {id:9,name:'Front of Castle'};
+      if(lower.includes('great hall')||lower.includes('greathall')) return {id:7,name:'Great Hall'};
+      if(lower.includes('terrace')) return {id:8,name:'Terrace'};
+      if(lower.includes('kitchen')) return {id:2,name:'Kitchen'};
+      if(lower.includes('ice')) return {id:3,name:'Ice Room'};
+      if(lower.includes('peacock')) return {id:4,name:'Peacock Alley'};
+      if(lower.includes('security')) return {id:1,name:'Security Hallway'};
+      return {id:currentRoom,name:'Current room'};
+    }
+
+    function spawnTaskFromSample(){
+      const samples = [
+        'Move the gelato cart to front of castle',
+        'I need 5 chairs to the library',
+        'Bring water bottles to the conservatory',
+        'Change the lightbulb in the peacock alley',
+        'Put a high top table by entrance in the library',
+        'Fix the umbrella on the terrace'
+      ];
+      const text = samples[Math.floor(Math.random()*samples.length)];
+      const target = parseTargetRoomFromText(text);
+      const t = {id:nextId++, short:text, text:text, target:target.id, targetName:target.name, assigned:hour*60+minute, completed:false};
+      tasks.push(t);
+      appendLog('New task #' + t.id + ': ' + t.short + ' (target: ' + t.targetName + ')');
+      renderTasks();
+    }
+
+    function attemptComplete(taskId){
+      const idx = tasks.findIndex(x=>x.id===taskId);
+      if(idx===-1) return; const t = tasks[idx];
+      if(t.target !== currentRoom){
+        appendLog('Wrong room to complete task #' + t.id + '. 15 minutes pass.');
+        advanceTime(15);
+        return;
+      }
+      tasks.splice(idx,1);
+      appendLog('Completed task #' + t.id + ': ' + t.short);
+      renderTasks();
+    }
+
+    function advanceTime(minutesAdd){
+      let total = hour*60 + minute + minutesAdd; hour = Math.floor(total/60)%24; minute = total%60; i = (hour-8) + (minute/60.0);
+      updateClock(); checkOverdue();
+    }
+
+    function checkOverdue(){
+      const now = hour*60 + minute; for(let i=tasks.length-1;i>=0;i--){ const t=tasks[i]; if(!t.completed){ const elapsed = now - t.assigned; if(elapsed>=60){ tasks.splice(i,1); appendLog('Task #' + t.id + ' overdue — write-up issued.'); } }} renderTasks(); }
+
+    // wire UI
+    document.getElementById('moveBtn').addEventListener('click', ()=>{
+      const v = Number(document.getElementById('roomInput').value);
+      if(Number.isInteger(v) && v>=0 && v<=9){ currentRoom=v; appendLog('Moved to '+v); } else { appendLog('Invalid room number'); }
+    });
+
+    document.getElementById('passBtn').addEventListener('click', ()=>{ advanceTime(30); appendLog('30 minutes passed'); });
+    document.getElementById('spawnBtn').addEventListener('click', ()=>{ spawnTaskFromSample(); });
+    document.getElementById('completeBtn').addEventListener('click', ()=>{ if(tasks.length===0){ appendLog('No tasks to complete'); return; } attemptComplete(tasks[0].id); });
+    document.getElementById('refreshTasks').addEventListener('click', renderTasks);
+
+    updateClock(); renderTasks();
+  </script>
+</body>
+</html>
